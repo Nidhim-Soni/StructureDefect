@@ -4,6 +4,10 @@ from PIL import Image
 import os
 import datetime as dt
 
+if "report_text" not in st.session_state:
+    st.session_state.report_text = ""
+
+
 # Lets configure the model
 
 gemini_api_key = os.getenv('Google_API_Key2')
@@ -13,9 +17,10 @@ model = genai.GenerativeModel('gemini-2.5-flash-lite')
 # lets create sidebar for image uplaod 
 
 st.sidebar.title(':red[Upload the Images Here: ]')
-uploaded_image = st.sidebar.file_uploader('Image',type=['jpeg','jpg','png','jfif'])
+uploaded_image = st.sidebar.file_uploader('Image',type=['jpeg','jpg','png','jfif'],accept_multiple_files=True)
+
+uploaded_image = [Image.open(img) for img in uploaded_image]
 if uploaded_image:
-    uploaded_image = Image.open(uploaded_image)
     st.sidebar.success('Images has been loaded successfully')
     st.sidebar.subheader(':blue[Uploaded Images]')
     st.sidebar.image(uploaded_image)
@@ -30,12 +35,16 @@ desig=st.text_input('Enter the designation of person who have prepared the repor
 org=st.text_input('Enter the name of the organisation: ')
 
 if st.button('SUBMIT'):
+    if not uploaded_image:
+        st.warning("Please upload at least 1 image before submitting ⚠️")
+        st.stop()
     with st.spinner('Processing....'):
         prompt = f'''
                 <Role> You are an expert structural engineer with 20+ years of experience in construction
                 <Goal> You need to prepare a detailed report on the structural defect shown in the images provided by the user.
                 <Context> the images shared by the user has been attached
                 <Format> Follow the steps to prepare the report
+                * Display the title properly and dont divert from the format of the report. it should look profeesional
                 * Add title at the top of the report. The title provided by the user is {title}.
                 * next add name ,designation and organization of the person who has prepared the report. Also include the date.Following are the details 
                 provided by the user
@@ -56,14 +65,21 @@ if st.button('SUBMIT'):
                 * Make the report look formal and attractive.
                 * the format of the report should not be informal and alligns to the latest format of report writing.
             '''
-        response = model.generate_content([prompt,uploaded_image],
+        response = model.generate_content([prompt,*uploaded_image],
                                           generation_config={'temperature':0.9})
+        st.session_state.report_text = response.text
         st.write(response.text)
 
-        if st.download_button(
-            label='Click To Download',
-            data=response.text,
-            file_name='Structural_defect_report.txt',
-            mime='text/plain'
-        ):
-            st.success('The File is Downloaded Successfully')
+report_box = st.empty()
+
+if st.session_state.report_text:
+    report_box.markdown(st.session_state.report_text)
+
+    st.download_button(
+        "📥 Click To Download",
+        data=st.session_state.report_text,
+        file_name="Structural_defect_report.txt",
+        mime="text/plain",
+        key="download_report"
+    )
+
